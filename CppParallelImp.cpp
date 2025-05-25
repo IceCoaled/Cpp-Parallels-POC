@@ -387,6 +387,31 @@ namespace Parallels
 
 
 	/**
+	* @concept IsInvocableContainer
+	* @brief Validates that a predicate can be invoked with container elements and returns void
+	*
+	* @tparam Container The container type whose elements will be processed
+	* @tparam Pred The predicate/callable type to validate
+	*
+	* @details This concept ensures type safety for parallel container operations by verifying:
+	* - The predicate can be called with the container's value_type as an argument
+	* - The predicate returns void (no return value expected)
+	*
+	* Used with Parallel::ForEach operations where the predicate receives
+	* dereferenced container elements during parallel iteration.
+	*
+	* @note The predicate should accept the container's value_type, which is typically
+	* the type returned when dereferencing the container's iterators.
+	*
+	*/
+	template<typename Container, typename Pred>
+	concept IsInvocableContainer =
+		std::invocable<Pred, typename Container::value_type>&&
+		std::same_as<std::invoke_result_t<Pred, typename Container::value_type>, void>;
+		
+
+
+	/**
 	* @concept IsProperRange
 	* @brief Concept to validate types suitable for range-based parallel operations
 	*
@@ -398,6 +423,30 @@ namespace Parallels
 	concept IsProperRange =
 		std::input_iterator<Indexer> ||
 		std::is_integral_v<Indexer>;
+
+
+
+	
+	/**
+	* @concept IsInvocableRange
+	* @brief Validates that a predicate can be invoked with an indexer type and returns void
+	*
+	* @tparam Indexer The indexer type (iterator or integral type) used in range operations
+	* @tparam Pred The predicate/callable type to validate
+	*
+	* @details This concept ensures type safety for parallel range operations by verifying:
+	* - The predicate can be called with the indexer type as an argument
+	* - The predicate returns void (no return value expected)
+	*
+	* Used primarily with Parallel::For operations where the predicate receives
+	* either integral indices or iterator values directly.
+	*
+	* @note This concept works with both integral types (int, size_t, etc.) and
+	* iterator types, making it suitable for various indexing scenarios.
+	*/
+	template<typename Indexer, typename Pred>
+	concept IsInvocableRange = std::invocable<Pred, Indexer>&&
+		std::same_as<std::invoke_result_t<Pred, Indexer>, void>;
 
 
 	/**
@@ -417,6 +466,7 @@ namespace Parallels
 	* for loops with small per-iteration work. Consider using larger chunk sizes.
 	*/
 	template<IsProperRange indexer, typename Pred>
+	requires IsInvocableRange<indexer, Pred>
 	constexpr auto For( indexer start, indexer end, Pred&& func, size_t szChunk = 0 ) -> void
 	{
 		using TPE = ThreadPoolEnvironment;
@@ -466,6 +516,7 @@ namespace Parallels
 	* Uses iterator advancement to ensure proper traversal of all container types.
 	*/
 	template<IsRangedContainer Container, typename Pred>
+		requires IsInvocableContainer< Container, Pred>
 	constexpr auto ForEach( const Container& c, Pred&& func, size_t szChunk = 0 ) -> void
 	{
 		if ( c.empty() )
