@@ -486,9 +486,9 @@ namespace Parallels
 
 		// Post the work with the lambda function
 		// This is our main callable
-		for ( indexer i = start; i < end; i += static_cast< indexer >( szChunk ) )
+		for ( indexer i = start; i < end; i += szChunk )
 		{
-			indexer chunkEnd = std::min< indexer >( i + static_cast< indexer >( szChunk ), end );
+			indexer chunkEnd = std::min< indexer >( i + szChunk, end );
 			pool.PostWork( [i, chunkEnd, &func]()
 						   {
 							   for ( indexer j = i; j < chunkEnd; ++j )
@@ -578,7 +578,6 @@ int main()
 {
 	using Timer = typename std::conditional<std::chrono::high_resolution_clock::is_steady,
 		std::chrono::high_resolution_clock, std::chrono::steady_clock>;
-	using Microseconds = std::chrono::duration<double, std::micro>;
 
 
 	// Example 1: Simple parallel for loop
@@ -598,10 +597,16 @@ int main()
 	std::vector<int> numbers( arraySize );
 	std::vector<int> results( arraySize );
 
+	// Initialize numbers
+	for ( size_t l = 0; l < arraySize; ++l )
+	{
+		numbers[ l ] = l;
+	}
+
 	std::println( "\nParallel Computation Example Using {} digits:", arraySize );
 
 	// Initialize input
-	std::iota( numbers.begin(), numbers.end(), 0 );
+	std::iota( results.begin(), results.end(), 0 );
 
 	auto start = Timer::type::now();
 
@@ -615,12 +620,28 @@ int main()
 
 	std::println( "Non Parallel computation took: {}ms ", duration.count() );
 
-	std::iota( numbers.begin(), numbers.end(), 0 );
+	std::iota( results.begin(), results.end(), 0 );
 
 	start = Timer::type::now();
 
 	// Parallel computation
-	Parallels::For( size_t( 0 ), arraySize, [&]( size_t i )
+	Parallels::For( numbers.begin(), numbers.end(), [&]( std::vector<int>::iterator it)
+					{
+						auto var = *it;
+						results[ std::distance(numbers.begin(), it ) ] = var * var; // Square each number
+					} );
+
+	end = Timer::type::now();
+	duration = std::chrono::duration_cast< std::chrono::milliseconds >( end - start );
+
+	std::println( "Parallel Range Based computation took: {}ms ", duration.count() );
+
+	std::iota( results.begin(), results.end(), 0 );
+
+	start = Timer::type::now();
+
+	// Parallel computation
+	Parallels::For( 0LLU, arraySize, [&]( const int i )
 					{
 						results[ i ] = numbers[ i ] * numbers[ i ]; // Square each number
 					} );
