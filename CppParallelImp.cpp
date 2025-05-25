@@ -4,6 +4,7 @@
 #include <future>
 #include <chrono>
 #include <print>
+#include <numeric>
 
 
 
@@ -93,7 +94,7 @@ namespace Parallels
 			* Uses perfect forwarding and std::apply to bind arguments at construction time.
 			*/
 			template <typename Callable, typename... Args>
-			 WorkItem( Callable&& Pred, Args&&... args )
+			WorkItem( Callable&& Pred, Args&&... args )
 			{
 				// Recreate the lambda and bind our arguments to it
 				mFunction = [callable = std::forward<Callable>( Pred ),
@@ -102,7 +103,7 @@ namespace Parallels
 						// This is like invoke but it unpacks the arguments
 						std::apply( callable, argsTuple );
 					};
-				
+
 			}
 
 			/**
@@ -119,7 +120,7 @@ namespace Parallels
 					// Call function
 					mFunction();
 					// Set value void for this
-					mPromise.set_value( );
+					mPromise.set_value();
 				} catch ( ... )
 				{
 					// Else capture any exceptions thrown
@@ -165,7 +166,7 @@ namespace Parallels
 			try
 			{
 				// Each thread gets different Parameter
-				workItem->Execute(); 
+				workItem->Execute();
 			} catch ( ... )
 			{
 				// Note: Rethrowing here could terminate the thread pool
@@ -174,7 +175,7 @@ namespace Parallels
 			}
 
 			// Each thread deletes their own object
-			delete workItem;    
+			delete workItem;
 		}
 
 
@@ -200,7 +201,7 @@ namespace Parallels
 			SetThreadpoolThreadMaximum( this->mPoolHandle, this->mProcessorCount >> 1 );
 
 			// Create our environment struct
-			this->mCallbackEnviro = ( ( PTP_CALLBACK_ENVIRON ) malloc( sizeof( TP_CALLBACK_ENVIRON ) ) );
+			this->mCallbackEnviro = ( ( PTP_CALLBACK_ENVIRON )malloc( sizeof( TP_CALLBACK_ENVIRON ) ) );
 			if ( this->mCallbackEnviro == nullptr )
 			{
 				return;//Error handling
@@ -277,11 +278,11 @@ namespace Parallels
 			using Timer = typename std::conditional<std::chrono::high_resolution_clock::is_steady,
 				std::chrono::high_resolution_clock, std::chrono::steady_clock>;
 			using Microseconds = std::chrono::duration<double, std::micro>;
-			
+
 			// We sleep the calling thread till our pool is ready
 			// This times our after 20 milliseconds
 			auto start = Timer::type::now();
-			while ( !this->mReady && ( Timer::type::now() - start).count() < 20LLU )
+			while ( !this->mReady && ( Timer::type::now() - start ).count() < 20LLU )
 			{
 				std::this_thread::sleep_for( Microseconds( 1 ) );
 			}
@@ -293,7 +294,7 @@ namespace Parallels
 			{
 				// Create our work item from the provided lambda and check if its null
 				// Note: the work items memory ends in the callback as we delete it there before returning
-				
+
 				if ( auto* workItem = new WorkItem( std::forward<Callable>( Pred ) ); workItem == nullptr )
 				{
 					// Error handling - consider throwing or logging
@@ -312,11 +313,11 @@ namespace Parallels
 						delete workItem;
 						//TODO: consider throwing or logging
 					}
-					
+
 				}
 			}
 		}
-		 
+
 		/**
 		* @brief Waits for all submitted work items to complete
 		*
@@ -325,7 +326,7 @@ namespace Parallels
 		*/
 		auto WaitAll() -> void
 		{
-			
+
 			if ( this->mCleanUp )
 			{
 				this->mReady = false;
@@ -336,8 +337,8 @@ namespace Parallels
 				{
 					// Error handling - consider throwing or logging
 					return;
-				} 
-				
+				}
+
 				SetThreadpoolCallbackCleanupGroup( this->mCallbackEnviro, this->mCleanUp, nullptr );
 				this->mReady = true;
 			}
@@ -348,7 +349,7 @@ namespace Parallels
 		*
 		* @return const uint32_t Number of hardware threads available
 		*/
-		[[nodiscard]] static __inline auto GetProcessorCount()-> const uint32_t
+		[[nodiscard]] static __inline auto GetProcessorCount() -> const uint32_t
 		{
 			return std::thread::hardware_concurrency();
 		}
@@ -384,7 +385,7 @@ namespace Parallels
 		{ c.empty() } -> std::convertible_to<bool>;
 	};
 
-	
+
 	/**
 	* @concept IsProperRange
 	* @brief Concept to validate types suitable for range-based parallel operations
@@ -398,7 +399,7 @@ namespace Parallels
 		std::input_iterator<Indexer> ||
 		std::is_integral_v<Indexer>;
 
-	
+
 	/**
 	* @brief Parallel for loop implementation using Windows Thread Pool
 	*
@@ -427,12 +428,12 @@ namespace Parallels
 			const auto pCount = TPE::GetProcessorCount();
 			szChunk = std::max< size_t >( 1ULL, totalRange / pCount );
 		}
-		
+
 		// Create our environment
 		auto pool = TPE();
 
-	
-		
+
+
 		// Post the work with the lambda function
 		// This is our main callable
 		for ( indexer i = start; i < end; i += static_cast< indexer >( szChunk ) )
@@ -449,7 +450,7 @@ namespace Parallels
 
 		// Wait for the pool to
 		// finish and Clean up from work
-		pool.WaitAll();		
+		pool.WaitAll();
 	}
 
 	/**
@@ -471,9 +472,9 @@ namespace Parallels
 		{
 			return;
 		}
-		
+
 		using TPE = ThreadPoolEnvironment;
-		
+
 		// Calculate the total range and the chunk size for each thread
 		const auto totalRange = static_cast< size_t >( std::distance( c.begin(), c.end() ) );
 		if ( szChunk == 0 )
@@ -481,7 +482,7 @@ namespace Parallels
 			const auto pCount = TPE::GetProcessorCount();
 			szChunk = std::max< size_t >( 1ULL, totalRange / pCount );
 		}
-		
+
 		// Create our environment
 		auto pool = TPE();
 
@@ -499,18 +500,18 @@ namespace Parallels
 			std::advance( chunkEnd, std::min< size_t >( szChunk, static_cast< size_t >( std::distance( it, end ) ) ) );
 
 			pool.PostWork( [it, chunkEnd, &func]()
-							{
-								for ( auto current = it; current != chunkEnd; ++current )
-								{
-									func( *current );
-								}
-							} );
-			// Advance the main iterator to the end of the current chunk
+						   {
+							   for ( auto current = it; current != chunkEnd; ++current )
+							   {
+								   func( *current );
+							   }
+						   } );
+					   // Advance the main iterator to the end of the current chunk
 			it = chunkEnd;
 		}
 		// Wait for the pool to
 		// finish and Clean up from work
-		pool.WaitAll();		
+		pool.WaitAll();
 	}
 
 };//!Parallels
@@ -528,34 +529,31 @@ int main()
 		std::chrono::high_resolution_clock, std::chrono::steady_clock>;
 	using Microseconds = std::chrono::duration<double, std::micro>;
 
-	
+
 	// Example 1: Simple parallel for loop
 	std::println( "Showing all the threads involved:" );
 
 	std::mutex printMutex;
 	Parallels::For( 0, 10, [&]( int i )
-							   {
-								   std::lock_guard<std::mutex> lock( printMutex );
-								   std::println( "Processing index: {}, on thread: {}", i, GetCurrentThreadId() );
-							   } );
+					{
+						std::lock_guard<std::mutex> lock( printMutex );
+						std::println( "Processing index: {}, on thread: {}", i, GetCurrentThreadId() );
+					} );
 
-							   // Example 2: Parallel computation
-	
+										// Example 2: Parallel computation
+
 
 	constexpr size_t arraySize = 1000000;
 	std::vector<int> numbers( arraySize );
 	std::vector<int> results( arraySize );
 
-	std::println( "\nParallel Computation Example Using {} digits:",  arraySize );
+	std::println( "\nParallel Computation Example Using {} digits:", arraySize );
 
 	// Initialize input
-	for ( size_t i = 0; i < arraySize; ++i )
-	{
-		numbers[ i ] = static_cast< int >( i );
-	}
+	std::iota( numbers.begin(), numbers.end(), 0 );
 
 	auto start = Timer::type::now();
-	
+
 	for ( int z = 0; z < arraySize; ++z )
 	{
 		results[ z ] = numbers[ z ] * numbers[ z ]; // Square each number
@@ -566,13 +564,15 @@ int main()
 
 	std::println( "Non Parallel computation took: {}ms ", duration.count() );
 
+	std::iota( numbers.begin(), numbers.end(), 0 );
+
 	start = Timer::type::now();
 
 	// Parallel computation
 	Parallels::For( size_t( 0 ), arraySize, [&]( size_t i )
-							   {
-								   results[ i ] = numbers[ i ] * numbers[ i ]; // Square each number
-							   } );
+					{
+						results[ i ] = numbers[ i ] * numbers[ i ]; // Square each number
+					} );
 
 	end = Timer::type::now();
 	duration = std::chrono::duration_cast< std::chrono::milliseconds >( end - start );
@@ -580,7 +580,7 @@ int main()
 	std::println( "Parallel computation took: {}ms ", duration.count() );
 
 	// Example 3: Parallel for each with container
-	std::println( "\nParallel ForEach Example:");
+	std::println( "\nParallel ForEach Example:" );
 
 	std::vector<std::string> words = { "hello", "world", "parallel", "processing", "rocks" };
 	std::vector<size_t> lengths( words.size() );
@@ -588,19 +588,19 @@ int main()
 	start = Timer::type::now();
 
 	Parallels::ForEach( words, [&]( const std::string& word )
-								   {
-									   // Find the index of this word (for demonstration)
-									   auto it = std::find( words.begin(), words.end(), word );
-									   if ( it != words.end() )
-									   {
-										   size_t index = std::distance( words.begin(), it );
-										   lengths[ index ] = word.length();
-									   }
-								   } );
+						{
+							// Find the index of this word (for demonstration)
+							auto it = std::find( words.begin(), words.end(), word );
+							if ( it != words.end() )
+							{
+								size_t index = std::distance( words.begin(), it );
+								lengths[ index ] = word.length();
+							}
+						} );
 
 	end = Timer::type::now();
 	duration = std::chrono::duration_cast< std::chrono::milliseconds >( end - start );
-	
+
 	std::println( "Parallel For each computation took: {}ms ", duration.count() );
 
 	for ( size_t i = 0; i < words.size(); ++i )
