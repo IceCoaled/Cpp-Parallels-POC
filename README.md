@@ -49,6 +49,13 @@ std::iota(numbers.begin(), numbers.end(), 0);
 Parallels::For(size_t(0), numbers.size(), [&](size_t i) {
     results[i] = numbers[i] * numbers[i]; // Square each number
 });
+
+// Parallel Ranged for computation
+Parallels::For(numbers.begin(), numbers.end(), [&](std::vector<int>::iterator& it) {
+auto itVar = *it;
+size_t index = std::distance(numbers.begin(), it);
+results[index] =itVar * itVar; // Square each number
+});
 ```
 
 ### Parallel ForEach with Containers
